@@ -4,7 +4,6 @@ Documentation     Orders robots from RobotSpareBin Industries Inc.
 ...               Saves the screenshot of the ordered robot.
 ...               Embeds the screenshot of the robot to the PDF receipt.
 ...               Creates ZIP archive of the receipts and the images.
-
 Library           RPA.Browser.Selenium
 Library           RPA.Excel.Files
 Library           RPA.HTTP
@@ -16,6 +15,7 @@ Library           RPA.Robocloud.Secrets
 
 
 *** Variables ***
+#${CSV_FILE_URL}=    https://robotsparebinindustries.com/orders.csv
 ${GLOBAL_RETRY_AMOUNT}=    10x
 ${GLOBAL_RETRY_INTERVAL}=    1s
 ${order_number}
@@ -28,15 +28,18 @@ Get the URL from vault and Open the robot order website
     Open Available Browser      ${url}[web_url]
 
 
-*** Keywords ***    
-Download The CSV file
-    ${url}=    Get Secret    urls
-    Download      ${url}[CSV_URL]   overwrite=True
-        
+*** Keywords ***
+Get orders.csv URL from User
+    Create Form    Orders.csv URL
+    Add Text Input    URL    url
+    &{response}    Request Response
+    [Return]    ${response["url"]}
+
 
 *** Keywords ***
 Get orders
-    Download The CSV file
+    ${CSV_FILE_URL}=    Get orders.csv URL from User
+    Download        ${CSV_FILE_URL}           overwrite=True
     ${table}=       Read Table From Csv       orders.csv      dialect=excel  header=True
     FOR     ${row}  IN  @{table}
         Log     ${row}
@@ -53,9 +56,9 @@ Close the annoying modal
 Preview the robot
     Click Element    id:preview
     Wait Until Element Is Visible    id:robot-preview
+    
 
-
-*** Keywords ***   
+*** Keywords ***
 Submit the order And Keep Checking Until Success
     Click Element    order
     Element Should Be Visible    xpath://div[@id="receipt"]/p[1]
@@ -72,7 +75,7 @@ Go to order another robot
     Click Button    order-another
     
 
-*** Keywords ***   
+*** Keywords *** 
 Create a ZIP file of the receipts
     Archive Folder With Zip  ${CURDIR}${/}output${/}receipts   ${CURDIR}${/}output${/}receipt.zip
 
@@ -95,12 +98,13 @@ Store the receipt as a PDF file
     [Arguments]    ${order_number}
     Wait Until Element Is Visible    id:order-completion
     ${order_number}=    Get Text    xpath://div[@id="receipt"]/p[1]
+    #Log    ${order_number}
     ${receipt_html}=    Get Element Attribute    id:order-completion    outerHTML
     Html To Pdf    ${receipt_html}    ${CURDIR}${/}output${/}receipts${/}${order_number}.pdf
     [Return]    ${CURDIR}${/}output${/}receipts${/}${order_number}.pdf
 
 
-*** Keywords *** 
+*** Keywords ***
 Take a screenshot of the robot
     [Arguments]    ${order_number}
     Screenshot     id:robot-preview    ${CURDIR}${/}output${/}${order_number}.png
